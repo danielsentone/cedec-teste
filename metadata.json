@@ -1,0 +1,8 @@
+{
+  "name": "Defesa Civil PR - Laudo de Danos",
+  "description": "Aplicativo para engenheiros da Defesa Civil do Paraná realizarem vistorias e laudos de imóveis afetados por eventos climáticos.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
