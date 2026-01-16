@@ -40,9 +40,7 @@ const App: React.FC = () => {
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
 
-  // URLs estáveis para as Logos
   const LOGO_DC_URL = "https://www.defesacivil.pr.gov.br/sites/defesa-civil/themes/custom/defesa_civil_theme/logo.png";
-  const PAPEL_TIMBRADO_URL = "https://i.ibb.co/VqnqF0f/papel-timbrado-defesa-civil-pr.png"; // Mock do papel timbrado oficial
 
   useEffect(() => {
     const L = (window as any).L;
@@ -51,7 +49,7 @@ const App: React.FC = () => {
     const centroLat = -25.492578;
     const centroLng = -52.525791;
 
-    mapRef.current = L.map('map-container').setView([centroLat, centroLng], 16);
+    mapRef.current = L.map('map-container').setView([centroLat, centroLng], 14);
     const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' });
     const hybridLabels = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { opacity: 0.45 });
     
@@ -62,6 +60,9 @@ const App: React.FC = () => {
       const { lat, lng } = e.latlng;
       updateLocationFromCoords(lat, lng);
     });
+
+    // Forçar resize após render inicial para garantir que o mapa preencha o container em Desktop
+    setTimeout(() => mapRef.current?.invalidateSize(), 500);
 
     return () => { if (mapRef.current) mapRef.current.remove(); };
   }, []);
@@ -80,7 +81,8 @@ const App: React.FC = () => {
         const rua = addr.road || addr.street || addr.pedestrian || '';
         const num = addr.house_number || 'S/N';
         const bairro = addr.suburb || addr.neighbourhood || '';
-        setFormData(prev => ({ ...prev, endereco: `${rua}, ${num} - ${bairro}, ${addr.city || ''} - PR` }));
+        const cidade = addr.city || addr.town || '';
+        setFormData(prev => ({ ...prev, endereco: `${rua}, ${num} - ${bairro}, ${cidade} - PR` }));
       }
     } catch (e) { console.error(e); }
   };
@@ -132,22 +134,21 @@ const App: React.FC = () => {
       parent.classList.remove('hidden');
       parent.setAttribute('style', 'position: absolute; left: -9999px; top: 0; display: block;');
       
-      await new Promise(r => setTimeout(r, 1500));
-      const canvas = await html2canvas(target, { scale: 2, useCORS: true });
+      await new Promise(r => setTimeout(r, 2000));
+      const canvas = await html2canvas(target, { scale: 2, useCORS: true, allowTaint: true });
       parent.classList.add('hidden');
       
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
       const pdf = new JsPDFConstructor('p', 'mm', 'a4');
       pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
       
-      // FIX: Ensure the output is correctly converted to a Blob using jsPDF's output method
       const blob = pdf.output('blob');
-      window.open(URL.createObjectURL(blob), '_blank');
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
       
       const nextId = laudosCount + 1;
       setLaudosCount(nextId);
       localStorage.setItem('laudosCount', nextId.toString());
-      alert("Laudo exportado com sucesso no papel timbrado.");
     } catch (err) {
       console.error(err);
       alert("Erro ao gerar PDF.");
@@ -155,69 +156,98 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen pb-32 max-w-4xl mx-auto px-4 pt-6 bg-[#fdf2e9]">
-      <header className="flex flex-col md:flex-row items-center gap-6 mb-8 bg-[#f39200] text-[#002e6d] p-8 rounded-[2rem] shadow-xl border-b-8 border-[#d17a00]">
-        <div className="bg-white p-3 rounded-2xl shadow-md">
-          <img src={LOGO_DC_URL} alt="Defesa Civil PR" className="h-16 w-auto" crossOrigin="anonymous" />
+    <div className="min-h-screen pb-32 max-w-5xl mx-auto px-4 lg:px-8 pt-6">
+      <header className="flex flex-col md:flex-row items-center gap-6 mb-8 bg-[#f39200] text-[#002e6d] p-6 lg:p-10 rounded-[2.5rem] shadow-xl border-b-8 border-[#d17a00]">
+        <div className="bg-white p-4 rounded-3xl shadow-md shrink-0">
+          <img src={LOGO_DC_URL} alt="Defesa Civil PR" className="h-20 lg:h-24 w-auto" crossOrigin="anonymous" />
         </div>
-        <div className="text-center md:text-left">
-          <h1 className="text-2xl font-black uppercase leading-none">Defesa Civil</h1>
-          <p className="text-xl font-black uppercase text-white drop-shadow-sm">ESTADO DO PARANÁ</p>
-          <p className="text-[10px] mt-2 font-black opacity-80 uppercase tracking-widest text-[#002e6d]">Vistoria Técnica de Danos</p>
+        <div className="text-center md:text-left flex-grow">
+          <h1 className="text-2xl lg:text-3xl font-black uppercase leading-none">Defesa Civil</h1>
+          <p className="text-xl lg:text-2xl font-black uppercase text-white drop-shadow-md">ESTADO DO PARANÁ</p>
+          <div className="h-1 bg-[#002e6d]/20 my-2 rounded-full w-full"></div>
+          <p className="text-xs font-black uppercase tracking-widest text-[#002e6d] opacity-80">Portal de Vistoria e Laudos Técnicos</p>
         </div>
       </header>
 
-      <div className="bg-white rounded-[2.5rem] shadow-2xl border border-orange-100 p-6 md:p-10 space-y-10">
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-           <div className="space-y-3">
-              <label className="text-[11px] font-black text-orange-600 uppercase tracking-widest ml-2">Dados da Ocorrência</label>
-              <div className="p-5 bg-orange-50 rounded-2xl border border-orange-100 flex justify-between items-center">
-                <span className="text-[10px] font-bold text-orange-400 uppercase">Data:</span>
-                <span className="font-black text-[#002e6d]">{formData.data}</span>
+      <div className="bg-white rounded-[3rem] shadow-2xl border border-orange-100 p-8 lg:p-12 space-y-12">
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+           <div className="space-y-4">
+              <label className="text-[11px] font-black text-orange-600 uppercase tracking-widest ml-4">Informações da Vistoria</label>
+              <div className="p-6 bg-orange-50 rounded-[2rem] border border-orange-100 flex justify-between items-center shadow-inner">
+                <span className="text-[10px] font-bold text-orange-400 uppercase">Data do Relatório:</span>
+                <span className="font-black text-[#002e6d] text-lg">{formData.data}</span>
               </div>
               <div className="space-y-1">
-                 <p className="text-[10px] font-bold text-orange-400 uppercase ml-4">Município</p>
-                 <select name="municipio" value={formData.municipio} onChange={(e) => setFormData({...formData, municipio: e.target.value})} className="w-full p-4 border-2 border-orange-50 rounded-2xl outline-none font-bold text-[#002e6d] bg-white">
+                 <p className="text-[10px] font-bold text-orange-400 uppercase ml-6">Município de Atendimento</p>
+                 <select value={formData.municipio} onChange={(e) => setFormData({...formData, municipio: e.target.value})} className="w-full p-5 border-2 border-orange-50 rounded-[2rem] outline-none font-bold text-[#002e6d] bg-white shadow-sm hover:border-orange-200 focus:border-orange-400 transition-all cursor-pointer">
                    {MUNICIPIOS_PR.map(m => <option key={m} value={m}>{m}</option>)}
                  </select>
               </div>
            </div>
 
-           <div className="space-y-3">
-              <div className="flex justify-between items-center ml-2">
-                <label className="text-[11px] font-black text-orange-600 uppercase tracking-widest">Engenheiro Responsável</label>
-                <button onClick={() => setShowEngenheiroModal(true)} className="text-[9px] font-black text-white bg-[#002e6d] px-3 py-1 rounded-full shadow-sm">+ NOVO</button>
+           <div className="space-y-4">
+              <div className="flex justify-between items-center px-4">
+                <label className="text-[11px] font-black text-orange-600 uppercase tracking-widest">Responsável Técnico</label>
+                <button onClick={() => setShowEngenheiroModal(true)} className="text-[10px] font-black text-white bg-[#002e6d] px-4 py-2 rounded-full shadow-lg hover:bg-blue-800 transition-all">+ CADASTRAR NOVO</button>
               </div>
               <div className="space-y-1">
-                 <p className="text-[10px] font-bold text-orange-400 uppercase ml-4">Selecione:</p>
-                 <select name="engenheiro" value={formData.engenheiro} onChange={(e) => setFormData({...formData, engenheiro: e.target.value})} className="w-full p-4 border-2 border-orange-50 rounded-2xl outline-none font-bold text-[#002e6d] bg-white">
+                 <p className="text-[10px] font-bold text-orange-400 uppercase ml-6">Selecione o Profissional:</p>
+                 <select value={formData.engenheiro} onChange={(e) => setFormData({...formData, engenheiro: e.target.value})} className="w-full p-5 border-2 border-orange-50 rounded-[2rem] outline-none font-bold text-[#002e6d] bg-white shadow-sm hover:border-orange-200 focus:border-orange-400 transition-all cursor-pointer">
                    {engenheiros.map(e => <option key={e.nome} value={e.nome}>{e.nome}</option>)}
+                 </select>
+              </div>
+              {engenheiros.find(e => e.nome === formData.engenheiro) && (
+                <p className="text-[10px] text-slate-400 font-bold ml-6 uppercase tracking-tight">
+                  CREA: {engenheiros.find(e => e.nome === formData.engenheiro)?.crea}
+                </p>
+              )}
+           </div>
+        </section>
+
+        <section className="space-y-6">
+           <div className="flex items-center justify-between px-4">
+             <label className="text-[11px] font-black text-orange-600 uppercase tracking-widest">Geolocalização do Imóvel</label>
+             <p className="text-[9px] font-bold text-slate-400 uppercase hidden md:block italic">Clique no local exato do sinistro para atualizar as coordenadas e o endereço</p>
+           </div>
+           <div className="relative group h-[450px] lg:h-[550px] w-full">
+             <div id="map-container" className="h-full w-full rounded-[3.5rem] border-8 border-white shadow-2xl overflow-hidden ring-1 ring-orange-100"></div>
+             <div className="absolute top-4 right-4 z-10 p-3 bg-white/90 backdrop-blur rounded-2xl shadow-xl border border-orange-100">
+                <p className="text-[8px] font-black text-orange-500 uppercase leading-none mb-1">Coordenadas</p>
+                <p className="font-mono text-[10px] text-[#002e6d] font-bold">{formData.latitude || '0.0000'}, {formData.longitude || '0.0000'}</p>
+             </div>
+           </div>
+           <div className="p-8 bg-[#002e6d] rounded-[2.5rem] text-white shadow-2xl relative z-20 mx-2 lg:mx-8 -mt-12 lg:-mt-16 border-b-8 border-blue-900">
+              <p className="text-[10px] font-black uppercase text-blue-300 mb-2 tracking-[0.2em]">Endereço Técnico Capturado:</p>
+              <textarea name="endereco" value={formData.endereco} onChange={(e) => setFormData({...formData, endereco: e.target.value})} className="w-full bg-transparent border-none outline-none font-black text-lg lg:text-xl resize-none placeholder-blue-400 leading-tight" rows={2} placeholder="Clique no mapa..." />
+           </div>
+        </section>
+
+        <section className="bg-orange-50 p-8 lg:p-12 rounded-[3.5rem] border-2 border-orange-100 shadow-inner">
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="space-y-1">
+                 <p className="text-[9px] font-black text-orange-400 uppercase ml-4">Inscrição Municipal</p>
+                 <input type="text" onChange={(e) => setFormData({...formData, inscricaoMunicipal: e.target.value})} className="w-full p-5 rounded-[2rem] border-2 border-white focus:border-orange-300 outline-none font-bold text-[#002e6d] shadow-sm transition-all" placeholder="Número do IPTU" />
+              </div>
+              <div className="space-y-1">
+                 <p className="text-[9px] font-black text-orange-400 uppercase ml-4">Proprietário</p>
+                 <input type="text" onChange={(e) => setFormData({...formData, proprietario: e.target.value})} className="w-full p-5 rounded-[2rem] border-2 border-white focus:border-orange-300 outline-none font-bold text-[#002e6d] shadow-sm transition-all" placeholder="Nome Completo" />
+              </div>
+              <div className="space-y-1">
+                 <p className="text-[9px] font-black text-orange-400 uppercase ml-4">Requerente</p>
+                 <input type="text" onChange={(e) => setFormData({...formData, requerente: e.target.value})} className="w-full p-5 rounded-[2rem] border-2 border-white focus:border-orange-300 outline-none font-bold text-[#002e6d] shadow-sm transition-all" placeholder="Nome do Solicitante" />
+              </div>
+              <div className="space-y-1">
+                 <p className="text-[9px] font-black text-orange-400 uppercase ml-4">Tipologia</p>
+                 <select value={formData.tipologia} onChange={(e) => setFormData({...formData, tipologia: e.target.value as Tipologia})} className="w-full p-5 rounded-[2rem] border-2 border-white focus:border-orange-300 outline-none font-bold text-[#002e6d] shadow-sm cursor-pointer">
+                   {Object.values(Tipologia).map(t => <option key={t} value={t}>{t}</option>)}
                  </select>
               </div>
            </div>
         </section>
 
-        <section className="space-y-4">
-           <label className="text-[11px] font-black text-orange-600 uppercase tracking-widest ml-2">Localização (Clique no Mapa)</label>
-           <div id="map-container" className="h-[350px] w-full rounded-[2.5rem] border-4 border-white shadow-lg overflow-hidden ring-1 ring-orange-100"></div>
-           <div className="p-6 bg-[#002e6d] rounded-2xl text-white space-y-2">
-              <p className="text-[9px] font-black uppercase text-blue-300">Endereço Confirmado:</p>
-              <textarea name="endereco" value={formData.endereco} onChange={(e) => setFormData({...formData, endereco: e.target.value})} className="w-full bg-transparent border-none outline-none font-bold text-sm resize-none" rows={2} />
-           </div>
-        </section>
-
-        <section className="bg-orange-50 p-8 rounded-[2.5rem] grid grid-cols-1 md:grid-cols-2 gap-6">
-          <input name="inscricaoMunicipal" type="text" onChange={(e) => setFormData({...formData, inscricaoMunicipal: e.target.value})} className="w-full p-4 rounded-xl border-none font-bold placeholder-orange-200" placeholder="Inscrição Municipal" />
-          <input name="proprietario" type="text" onChange={(e) => setFormData({...formData, proprietario: e.target.value})} className="w-full p-4 rounded-xl border-none font-bold placeholder-orange-200" placeholder="Proprietário" />
-          <input name="requerente" type="text" onChange={(e) => setFormData({...formData, requerente: e.target.value})} className="w-full p-4 rounded-xl border-none font-bold placeholder-orange-200" placeholder="Requerente" />
-          <select name="tipologia" value={formData.tipologia} onChange={(e) => setFormData({...formData, tipologia: e.target.value as Tipologia})} className="w-full p-4 rounded-xl border-none font-bold text-[#002e6d]">
-            {Object.values(Tipologia).map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </section>
-
-        <section className="space-y-6">
-           <label className="text-[11px] font-black text-orange-600 uppercase tracking-widest ml-2">Levantamento de Danos</label>
-           <div className="flex flex-wrap gap-2">
+        <section className="space-y-8">
+           <label className="text-[11px] font-black text-orange-600 uppercase tracking-widest ml-4">Mapeamento de Danos Críticos</label>
+           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
              {DANOS_LIST.map(d => (
                <button 
                  key={d} 
@@ -230,144 +260,173 @@ const App: React.FC = () => {
                      return { ...prev, danos: current };
                    });
                  }}
-                 className={`px-4 py-2 rounded-xl text-[11px] font-black transition-all ${formData.danos?.find(x => x.tipo === d) ? 'bg-[#f39200] text-white' : 'bg-slate-100 text-slate-500'}`}
+                 className={`p-4 rounded-2xl text-[10px] font-black transition-all shadow-md transform active:scale-95 border-b-4 ${formData.danos?.find(x => x.tipo === d) ? 'bg-[#f39200] text-white border-orange-700' : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'}`}
                >
                  {d}
                </button>
              ))}
            </div>
            
-           <div className="space-y-6">
+           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {formData.danos?.map(d => (
-                <div key={d.tipo} className="p-6 bg-white border-2 border-orange-50 rounded-[2rem] space-y-4 shadow-sm">
-                  <p className="font-black text-[#002e6d] text-sm uppercase">{d.tipo}</p>
+                <div key={d.tipo} className="p-8 bg-white border-2 border-orange-100 rounded-[3rem] space-y-6 shadow-xl animate-in fade-in slide-in-from-top-4 duration-500">
+                  <div className="flex items-center gap-4 border-b border-orange-50 pb-4">
+                     <div className="w-10 h-10 bg-orange-500 text-white rounded-2xl flex items-center justify-center font-black shadow-lg">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                     </div>
+                     <p className="font-black text-[#002e6d] text-xl uppercase tracking-tighter">{d.tipo}</p>
+                  </div>
                   <textarea 
                     value={d.descricao} 
                     onChange={(e) => setFormData(p => ({ ...p, danos: p.danos?.map(x => x.tipo === d.tipo ? { ...x, descricao: e.target.value } : x) }))}
-                    className="w-full p-4 rounded-xl border-none outline-none font-medium text-sm bg-orange-50/30" placeholder="Detalhes da avaria..." 
+                    className="w-full p-6 rounded-3xl border-none outline-none font-medium text-sm bg-orange-50/40 text-[#002e6d] placeholder-orange-200 resize-none shadow-inner" 
+                    placeholder={`Detalhes técnicos para: ${d.tipo}`} 
+                    rows={3}
                   />
-                  <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
-                    {d.fotos.map((f, i) => (
-                      <div key={i} className="relative group aspect-square">
-                        <img src={f} className="w-full h-full object-cover rounded-xl border" />
-                        <button onClick={() => removeFoto(d.tipo, i)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1 shadow-lg hover:bg-red-700">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12"/></svg>
-                        </button>
-                      </div>
-                    ))}
-                    <label className="aspect-square flex flex-col items-center justify-center border-2 border-dashed border-orange-200 rounded-xl cursor-pointer hover:bg-orange-50 text-orange-400">
-                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
-                       <input type="file" multiple accept="image/*" className="hidden" onChange={(e) => handleFileChange(d.tipo, e)} />
-                    </label>
+                  <div className="space-y-4">
+                     <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest ml-2">Evidências Fotográficas</p>
+                     <div className="grid grid-cols-4 md:grid-cols-6 gap-3">
+                        {d.fotos.map((f, i) => (
+                          <div key={i} className="relative aspect-square group">
+                            <img src={f} className="w-full h-full object-cover rounded-2xl border-2 border-white shadow-md group-hover:opacity-75 transition-opacity" />
+                            <button onClick={() => removeFoto(d.tipo, i)} className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1.5 shadow-xl hover:bg-red-700 hover:scale-110 transition-all">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                          </div>
+                        ))}
+                        <label className="aspect-square flex flex-col items-center justify-center border-3 border-dashed border-orange-200 rounded-2xl cursor-pointer hover:bg-orange-50 hover:border-orange-300 transition-all text-orange-300 group">
+                           <svg className="w-8 h-8 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                           <input type="file" multiple accept="image/*" className="hidden" onChange={(e) => handleFileChange(d.tipo, e)} />
+                        </label>
+                     </div>
                   </div>
                 </div>
               ))}
            </div>
         </section>
 
-        <section className="bg-gradient-to-br from-[#f39200] to-orange-600 p-10 rounded-[3rem] text-white shadow-xl">
-           <div className="space-y-6">
-              <div className="space-y-2">
-                 <label className="text-[10px] font-black uppercase tracking-widest text-orange-100">Avaliação Conclusiva</label>
-                 <select name="classificacao" value={formData.classificacao} onChange={(e) => setFormData({...formData, classificacao: e.target.value as ClassificacaoDanos})} className="w-full p-4 bg-white/20 border-2 border-white/20 rounded-2xl outline-none font-black text-xl">
-                    {Object.values(ClassificacaoDanos).map(c => <option key={c} value={c} className="text-slate-900">{c}</option>)}
-                 </select>
+        <section className="bg-gradient-to-br from-[#f39200] via-[#ff9c00] to-orange-500 p-12 lg:p-16 rounded-[4rem] text-[#002e6d] shadow-2xl">
+           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+              <div className="space-y-6">
+                 <div className="space-y-2">
+                    <label className="text-[11px] font-black uppercase tracking-[0.3em] text-orange-900 opacity-60 ml-4">Parecer Técnico Conclusivo</label>
+                    <select value={formData.classificacao} onChange={(e) => setFormData({...formData, classificacao: e.target.value as ClassificacaoDanos})} className="w-full p-6 bg-white border-4 border-white/40 rounded-[2.5rem] outline-none font-black text-2xl shadow-2xl text-[#002e6d] appearance-none cursor-pointer">
+                       {Object.values(ClassificacaoDanos).map(c => <option key={c} value={c} className="text-slate-900">{c}</option>)}
+                    </select>
+                 </div>
+                 <div className="p-8 bg-white/20 border-2 border-white/30 rounded-[2.5rem] backdrop-blur-sm shadow-inner">
+                    <p className="text-[10px] font-black text-orange-900 uppercase mb-2 tracking-widest opacity-60">Impacto na Edificação</p>
+                    <p className="font-black text-2xl lg:text-3xl uppercase text-white drop-shadow-lg">{formData.nivelDestruicao}</p>
+                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                 <div className="p-4 bg-white/10 rounded-2xl">
-                    <p className="text-[9px] font-bold text-orange-100 uppercase mb-1">Impacto</p>
-                    <p className="font-black text-xs uppercase">{formData.nivelDestruicao}</p>
-                 </div>
-                 <div className="p-4 bg-white/10 rounded-2xl text-center">
-                    <p className="text-[9px] font-bold text-orange-100 uppercase mb-1">Comprometimento</p>
-                    <p className="text-2xl font-black">{formData.percentualDestruicao}</p>
-                 </div>
+              <div className="flex flex-col items-center justify-center p-10 bg-[#002e6d] rounded-[4rem] shadow-2xl border-4 border-white/10">
+                 <p className="text-[12px] font-black text-blue-300 uppercase mb-4 tracking-[0.4em]">Comprometimento Total</p>
+                 <span className="text-7xl lg:text-9xl font-black text-white drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)] leading-none">{formData.percentualDestruicao}</span>
               </div>
            </div>
         </section>
       </div>
 
-      <footer className="fixed bottom-0 left-0 right-0 p-6 bg-white/90 backdrop-blur-xl border-t border-orange-100 z-50">
-        <button onClick={finalizeLaudo} disabled={isGenerating} className="w-full py-5 bg-[#002e6d] hover:bg-[#f39200] text-white rounded-2xl font-black text-lg shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50">
-           {isGenerating ? "GERANDO RELATÓRIO..." : "FINALIZAR E GERAR PDF"}
-        </button>
+      <footer className="fixed bottom-0 left-0 right-0 p-6 bg-white/95 backdrop-blur-2xl border-t-2 border-orange-100 z-50">
+        <div className="max-w-5xl mx-auto flex gap-6">
+           <button onClick={finalizeLaudo} disabled={isGenerating} className="flex-1 py-6 bg-[#002e6d] hover:bg-blue-800 text-white rounded-[2.5rem] font-black text-2xl lg:text-3xl shadow-2xl transition-all transform active:scale-95 flex items-center justify-center gap-6 border-b-8 border-blue-900 disabled:opacity-50 group">
+             {isGenerating ? (
+               <div className="flex items-center gap-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-4 border-white/30 border-t-white"></div>
+                  <span>PROCESSANDO LAUDO...</span>
+               </div>
+             ) : (
+               <>
+                 <svg className="w-10 h-10 lg:w-12 lg:h-12 group-hover:rotate-6 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                 <span>FINALIZAR E EMITIR PDF</span>
+               </>
+             )}
+           </button>
+        </div>
       </footer>
 
       {/* MODAL ENGENHEIRO */}
       {showEngenheiroModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[60]">
-          <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-md space-y-6 shadow-2xl">
-            <h2 className="text-2xl font-black text-[#002e6d] uppercase">Novo Engenheiro</h2>
-            <input value={newEng.nome} onChange={e => setNewEng({...newEng, nome: e.target.value})} className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-orange-500 rounded-2xl outline-none font-bold" placeholder="Nome Completo" />
-            <input value={newEng.crea} onChange={e => setNewEng({...newEng, crea: e.target.value})} className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-orange-500 rounded-2xl outline-none font-bold" placeholder="CREA/PR" />
-            <input value={newEng.telefone} onChange={e => setNewEng({...newEng, telefone: e.target.value})} className="w-full p-4 bg-slate-50 border-2 border-transparent focus:border-orange-500 rounded-2xl outline-none font-bold" placeholder="Telefone" />
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-xl flex items-center justify-center p-6 z-[60] animate-in fade-in duration-300">
+          <div className="bg-white rounded-[4rem] p-12 w-full max-w-xl space-y-8 shadow-2xl border-t-8 border-[#f39200]">
+            <div className="text-center space-y-4">
+              <h2 className="text-3xl font-black text-[#002e6d] uppercase tracking-tighter">Novo Credenciamento</h2>
+              <div className="h-1.5 w-24 bg-orange-400 mx-auto rounded-full shadow-inner"></div>
+            </div>
+            <div className="space-y-4">
+              <input value={newEng.nome} onChange={e => setNewEng({...newEng, nome: e.target.value})} className="w-full p-6 bg-orange-50 border-2 border-transparent focus:border-[#f39200] rounded-3xl outline-none font-bold text-[#002e6d] text-lg" placeholder="Nome Completo" />
+              <input value={newEng.crea} onChange={e => setNewEng({...newEng, crea: e.target.value})} className="w-full p-6 bg-orange-50 border-2 border-transparent focus:border-[#f39200] rounded-3xl outline-none font-bold text-[#002e6d] text-lg" placeholder="Registro CREA/PR" />
+              <input value={newEng.telefone} onChange={e => setNewEng({...newEng, telefone: e.target.value})} className="w-full p-6 bg-orange-50 border-2 border-transparent focus:border-[#f39200] rounded-3xl outline-none font-bold text-[#002e6d] text-lg" placeholder="Contato (WhatsApp)" />
+            </div>
             <div className="flex gap-4">
-              <button onClick={() => setShowEngenheiroModal(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-xl font-bold">CANCELAR</button>
+              <button onClick={() => setShowEngenheiroModal(false)} className="flex-1 py-5 bg-slate-100 text-slate-500 rounded-[2rem] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors">CANCELAR</button>
               <button onClick={() => {
+                if(!newEng.nome || !newEng.crea) return alert("Nome e CREA são obrigatórios.");
                 const updated = [...engenheiros, newEng];
                 setEngenheiros(updated);
                 localStorage.setItem('engenheiros', JSON.stringify(updated));
                 setShowEngenheiroModal(false);
                 setNewEng({nome:'', crea:'', endereco:'', telefone:''});
-              }} className="flex-1 py-4 bg-[#002e6d] text-white rounded-xl font-black shadow-md">SALVAR</button>
+              }} className="flex-1 py-5 bg-[#002e6d] text-white rounded-[2rem] font-black uppercase tracking-widest shadow-xl hover:bg-blue-800 border-b-8 border-blue-900 transition-all active:scale-95">SALVAR CADASTRO</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* PDF TEMPLATE COM PAPEL TIMBRADO (Espaço em branco utilizado) */}
+      {/* PDF TEMPLATE - POSICIONADO NO ESPAÇO BRANCO DO PAPEL TIMBRADO */}
       <div className="hidden">
-        <div ref={pdfRef} className="bg-white text-slate-900" style={{ width: '210mm', minHeight: '297mm', position: 'relative' }}>
-          {/* Imagem de Fundo (Papel Timbrado) */}
+        <div ref={pdfRef} className="bg-white" style={{ width: '210mm', minHeight: '297mm', position: 'relative', overflow: 'hidden' }}>
+          {/* Imagem de Fundo Oficial */}
           <div className="absolute inset-0 z-0">
              <img src="https://i.ibb.co/VqnqF0f/papel-timbrado-defesa-civil-pr.png" alt="" style={{ width: '100%', height: '100%' }} crossOrigin="anonymous" />
           </div>
 
-          {/* Conteúdo Técnico Posicionado no Espaço Branco */}
-          <div className="relative z-10 pt-[55mm] px-[20mm] pb-[40mm] h-full flex flex-col">
-            <div className="text-center mb-10">
-               <h2 className="text-[18pt] font-black text-[#002e6d] uppercase border-b-2 border-orange-400 inline-block pb-1">Laudo Técnico de Vistoria Post-Evento</h2>
-               <p className="text-[10pt] font-bold text-slate-500 mt-2">CONTROLE Nº {String(formData.id).padStart(4, '0')} - ANO {new Date().getFullYear()}</p>
+          {/* Conteúdo Técnico */}
+          <div className="relative z-10 pt-[58mm] px-[22mm] pb-[45mm] h-full flex flex-col font-serif">
+            <div className="text-center mb-12">
+               <h2 className="text-[20pt] font-black text-[#002e6d] uppercase border-b-4 border-orange-400 inline-block pb-1 font-sans">Laudo de Vistoria de Edificação</h2>
+               <p className="text-[11pt] font-bold text-slate-500 mt-3 uppercase tracking-widest font-sans">Documento Técnico Oficial</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-y-6 text-[10pt] bg-slate-50/50 p-6 rounded-2xl border border-slate-100 mb-8">
-               <div className="space-y-2">
-                  <p><span className="font-black uppercase text-orange-600">Município:</span> {formData.municipio}</p>
-                  <p><span className="font-black uppercase text-orange-600">Data:</span> {formData.data}</p>
-                  <p><span className="font-black uppercase text-orange-600">Proprietário:</span> {formData.proprietario || 'N/A'}</p>
-                  <p><span className="font-black uppercase text-orange-600">Tipologia:</span> {formData.tipologia}</p>
+            <div className="grid grid-cols-2 gap-y-8 text-[11pt] bg-slate-50/70 p-8 rounded-[2rem] border-2 border-slate-100 mb-10 font-sans shadow-sm">
+               <div className="space-y-4">
+                  <p><span className="font-black text-orange-600 uppercase text-[9pt]">Município:</span><br/><span className="text-[12pt] font-black">{formData.municipio}</span></p>
+                  <p><span className="font-black text-orange-600 uppercase text-[9pt]">Data da Inspeção:</span><br/><span className="text-[12pt] font-black">{formData.data}</span></p>
+                  <p><span className="font-black text-orange-600 uppercase text-[9pt]">Proprietário:</span><br/><span className="text-[12pt] font-black uppercase">{formData.proprietario || 'NÃO DECLARADO'}</span></p>
                </div>
-               <div className="space-y-2">
-                  <p><span className="font-black uppercase text-orange-600">Coordenadas:</span> {formData.latitude}, {formData.longitude}</p>
-                  <p><span className="font-black uppercase text-orange-600">Engenheiro:</span> {formData.engenheiro}</p>
-                  <p><span className="font-black uppercase text-orange-600">Inscrição Mun.:</span> {formData.inscricaoMunicipal || 'N/A'}</p>
+               <div className="space-y-4">
+                  <p><span className="font-black text-orange-600 uppercase text-[9pt]">Coordenadas:</span><br/><span className="text-[12pt] font-black font-mono">{formData.latitude}, {formData.longitude}</span></p>
+                  <p><span className="font-black text-orange-600 uppercase text-[9pt]">Engenheiro:</span><br/><span className="text-[12pt] font-black uppercase">{formData.engenheiro}</span></p>
+                  <p><span className="font-black text-orange-600 uppercase text-[9pt]">Tipologia:</span><br/><span className="text-[12pt] font-black uppercase">{formData.tipologia}</span></p>
                </div>
-               <div className="col-span-2 border-t border-slate-200 pt-3">
-                  <p><span className="font-black uppercase text-orange-600">Localização:</span> {formData.endereco}</p>
+               <div className="col-span-2 border-t-2 border-white pt-4">
+                  <p><span className="font-black text-orange-600 uppercase text-[9pt]">Endereço Técnico:</span><br/><span className="text-[12pt] font-black uppercase leading-tight">{formData.endereco}</span></p>
                </div>
             </div>
 
-            <div className="space-y-6 flex-grow">
-               <h3 className="text-[12pt] font-black text-[#002e6d] uppercase border-l-4 border-[#f39200] pl-3 mb-4">Relato de Avarias Técnicas</h3>
+            <div className="space-y-8 flex-grow font-sans">
+               <h3 className="text-[14pt] font-black text-[#002e6d] uppercase border-l-8 border-[#f39200] pl-4 mb-6">Levantamento de Sinistro</h3>
                {formData.danos?.map(d => (
-                 <div key={d.tipo} className="mb-4">
-                    <p className="font-black text-slate-800 text-[10pt] uppercase mb-1">{d.tipo}</p>
-                    <p className="text-[9pt] leading-relaxed text-slate-600 italic pl-4 border-l border-slate-200">{d.descricao || 'Sem observações detalhadas.'}</p>
+                 <div key={d.tipo} className="mb-6 p-6 bg-white border border-slate-200 rounded-3xl shadow-sm">
+                    <p className="font-black text-slate-900 text-[11pt] uppercase mb-2 flex items-center gap-2">
+                       <span className="w-2 h-2 bg-orange-500 rounded-full"></span> {d.tipo}
+                    </p>
+                    <p className="text-[10pt] leading-relaxed text-slate-700 italic border-l-2 border-slate-100 pl-4">{d.descricao || 'Sem observações complementares inseridas pelo perito.'}</p>
                  </div>
                ))}
-               {formData.danos?.length === 0 && <p className="text-center italic text-slate-400">Nenhum dano registrado.</p>}
+               {formData.danos?.length === 0 && <p className="text-center italic text-slate-400 py-10">Nenhuma avaria registrada durante a vistoria de campo.</p>}
             </div>
 
-            <div className="mt-auto pt-10 border-t-2 border-slate-100 flex justify-between items-end">
-               <div className="bg-orange-50 p-6 rounded-3xl border border-orange-100 min-w-[200px]">
-                  <p className="text-[9pt] font-black text-orange-400 uppercase mb-1">Classificação Final</p>
-                  <p className="text-[14pt] font-black text-[#002e6d] uppercase leading-none">{formData.classificacao}</p>
-                  <p className="text-[10pt] font-bold text-orange-600 mt-1">{formData.nivelDestruicao}</p>
+            <div className="mt-auto pt-10 border-t-2 border-slate-100 flex justify-between items-center font-sans">
+               <div className="bg-[#fdf2e9] p-8 rounded-[2.5rem] border-2 border-orange-100 min-w-[220px] shadow-sm">
+                  <p className="text-[10pt] font-black text-orange-400 uppercase mb-1 tracking-widest">Avaliação Final</p>
+                  <p className="text-[18pt] font-black text-[#002e6d] uppercase leading-none mb-1">{formData.classificacao}</p>
+                  <p className="text-[11pt] font-black text-orange-600">{formData.nivelDestruicao} ({formData.percentualDestruicao})</p>
                </div>
-               <div className="text-center w-[300px]">
-                  <div className="border-b-2 border-slate-900 mb-2 h-10"></div>
-                  <p className="font-black text-[10pt] uppercase">{formData.engenheiro}</p>
-                  <p className="text-[8pt] text-slate-400 font-bold uppercase">CREA/PR • Defesa Civil Paraná</p>
+               <div className="text-center w-[350px]">
+                  <div className="border-b-2 border-slate-900 mb-4 h-16 w-full opacity-30"></div>
+                  <p className="font-black text-[12pt] uppercase text-slate-800 leading-none">{formData.engenheiro}</p>
+                  <p className="text-[9pt] text-slate-400 font-bold uppercase tracking-widest mt-1">Responsável Técnico • CREA/PR</p>
                </div>
             </div>
           </div>

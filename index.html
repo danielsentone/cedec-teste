@@ -21,15 +21,32 @@
 }
 </script>
 <style>
+  body {
+    overflow-x: hidden;
+  }
   .leaflet-container {
     width: 100%;
-    height: 300px;
-    border-radius: 1rem;
-    z-index: 10;
+    height: 100%;
+    border-radius: inherit;
+    z-index: 1;
+  }
+  /* Estilização da scrollbar para aparência mais moderna em desktop */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #fdf2e9;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #f39200;
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #d17a00;
   }
 </style>
 </head>
-<body class="bg-gray-50 text-gray-900 font-sans">
+<body class="bg-[#fdf2e9] text-gray-900 font-sans">
     <div id="root"></div>
 </body>
 </html>
